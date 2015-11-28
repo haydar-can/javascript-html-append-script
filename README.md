@@ -1,0 +1,1 @@
+HEAD tagýn içine script ve link taglarý ekler. 
