@@ -37,8 +37,7 @@
 		 fileSrc : './js/libs/underscore/underscore.js'
 	}
 
-	];
-	loadFile.loadFiles();
+	];	
  	loadFile.loadFinish = function(obj){
  		console.log(obj.length + ' dosya yüklendi.'
  	}

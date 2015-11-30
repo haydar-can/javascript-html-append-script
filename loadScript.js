@@ -158,7 +158,7 @@ var loadFile = {
 						}
 						else {
 							if($this._loadFinish instanceof Function)
-								$this._loadFinish.call($this.files, this);
+								$this._loadFinish.call($this.addedFiles, this);
 						}
 					}, this.files[0]['waitTime'] || $this._defaultTime);
 					console.log('file is already added.');
