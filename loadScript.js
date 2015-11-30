@@ -1,42 +1,108 @@
 ﻿'use strict';
+
+/**
+ * Object.defineProperty PollyFill
+ * */
+function defineProperties(obj, properties) {
+	function convertToDescriptor(desc) {
+		function hasProperty(obj, prop) {
+			return Object.prototype.hasOwnProperty.call(obj, prop);
+		}
+
+		function isCallable(v) {
+			// NB: modify as necessary if other values than functions are callable.
+			return typeof v === "function";
+		}
+
+		if (typeof desc !== "object" || desc === null)
+			throw new TypeError("bad desc");
+
+		var d = {};
+
+		if (hasProperty(desc, "enumerable"))
+			d.enumerable = !!desc.enumerable;
+		if (hasProperty(desc, "configurable"))
+			d.configurable = !!desc.configurable;
+		if (hasProperty(desc, "value"))
+			d.value = desc.value;
+		if (hasProperty(desc, "writable"))
+			d.writable = !!desc.writable;
+		if (hasProperty(desc, "get")) {
+			var g = desc.get;
+
+			if (!isCallable(g) && typeof g !== "undefined")
+				throw new TypeError("bad get");
+			d.get = g;
+		}
+		if (hasProperty(desc, "set")) {
+			var s = desc.set;
+			if (!isCallable(s) && typeof s !== "undefined")
+				throw new TypeError("bad set");
+			d.set = s;
+		}
+
+		if (("get" in d || "set" in d) && ("value" in d || "writable" in d))
+			throw new TypeError("identity-confused descriptor");
+
+		return d;
+	}
+
+	if (typeof obj !== "object" || obj === null)
+		throw new TypeError("bad obj");
+
+	properties = Object(properties);
+
+	var keys = Object.keys(properties);
+	var descs = [];
+
+	for (var i = 0; i < keys.length; i++)
+		descs.push([keys[i], convertToDescriptor(properties[keys[i]])]);
+
+	for (var i = 0; i < descs.length; i++)
+		Object.defineProperty(obj, descs[i][0], descs[i][1]);
+
+	return obj;
+};
+
+
 /**
  * Sayfaya istenilen script link dosyalarını yüklemeye yarar.
  *
  * Örnek :
  * 	loadFile.defaultTime = 50;
-	 loadFile.files = [
-	 {
-		 fileSrc : './js/libs/jquery/jquery.min.js',
-		 complete : function(){
-			 loadFile.files.unshift(
-				 {
-					 fileSrc : './js/libs/jquery/jquery-migrate.js',
-					 attr:{
-						 charset:'UTF-8',
-						 async:false
-					 }
-				 },
-				 {
-					 fileSrc : './js/jquery-mobile-config.js',
-					 cache:false,
-					 attr:{
-						 charset:'UTF-8',
-						 async:false
-					 }
-				 }
-			 )
-		 },
-		 attr:{
-			 charset:'UTF-8',
-			 async:false
-		 }
-	 },
-	 {
-		 fileSrc : './js/libs/underscore/underscore.js'
-	 }
+ loadFile.files = [
+ {
+     fileSrc : './js/libs/jquery/jquery.min.js',
+     complete : function(){
+         loadFile.files.unshift(
+             {
+                 fileSrc : './js/libs/jquery/jquery-migrate.js',
+                 attr:{
+                     charset:'UTF-8',
+                     async:false
+                 }
+             },
+             {
+                 fileSrc : './js/jquery-mobile-config.js',
+                 cache:false,
+                 attr:{
+                     charset:'UTF-8',
+                     async:false
+                 }
+             }
+         )
+     },
+     attr:{
+         charset:'UTF-8',
+         async:false
+     }
+ },
+ {
+     fileSrc : './js/libs/underscore/underscore.js'
+ }
 
-	 ];
-	 loadFile.loadFiles();
+ ];
+ loadFile.loadFiles();
  * 	loadFile.loadFinish = function(obj){
  * 		console.log(obj.length + ' dosya yüklendi.'
  * 	}
@@ -45,195 +111,257 @@
  * Bağımlılık : Browser'a bağlı olarak Object.key;
  * */
 
-var loadFile = {
-	_defaultTime:{
-		value:250,
+var loadFile = {};
+Object.defineProperties(loadFile,{
+	'_defaultTime':{
+		value:100,
 		enumerable:false,
-		writable:true,
+		writable:true
 	},
-	defaultTime:{
+	'defaultTime':{
 		get:function(){
 			return this._defaultTime;
 		},
-		set:function(){
+		set:function(value){
 			if(value instanceof Number){
 				this._defaultTime = value;
 			}
 		}
 	},
-	_loadFinish:{
-		value : null,
+	'_finish':{
+		value:null,
 		enumerable:false,
 		writable:true
 	},
 	/**
 	 * Tüm yükleme bittiğinde çalıştırılacak olan callback function
 	 * */
-	loadFinish:{
+	'finish':{
 		get:function(){
-			return this._loadFinish;
+			return this._finish;
 		},
 		set:function(value){
 			if(value instanceof Function){
-				this._loadFinish = value;
+				this._finish = value;
 			}
 		}
 	},
-
 	/**
 	 * Yüklenecek dosyalar
 	 * */
-	files : [],
-	arrayControl : function(variables){
-		return variables instanceof Array;
+	'_files':{
+		enumerable:false,
+		writable:true,
+		value:[]
 	},
-	objectControl : function(variables){
-		return variables instanceof Object;
+	'files':{
+		enumerable:true,
+		get:function(){
+			return this._files;
+		},
+		set:function(value){
+			if(value instanceof Array){
+				this._files = value;
+			}
+		}
 	},
-
 	/**
-	* çoklu dosya yüklemek için kullanılanılacak fonksiyon
-	* */
-	loadFiles : function(){
-		var $this = this, cache =(this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
-		if(this.arrayControl(this.files) && this.files.length>0){
-			if(this.objectControl(this.files[0])){
-				if(!this.fileExist(this.files[0]['fileSrc'])){
-					var ifJS = Boolean(this.files[0]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
-					switch(true){
-						case ifJS:
-							scriptTag = document.createElement('script');
-							scriptTag.setAttribute('type','text/javascript');
-							scriptTag.setAttribute('src',loadFile.files[0]['fileSrc']+cache);
-							break;
-						default:
-							scriptTag = document.createElement('link');
-							scriptTag.setAttribute('href',loadFile.files[0]['fileSrc']+cache);
-							scriptTag.setAttribute('rel','stylesheet');
-							break;
-					}
-
-					if(this.files[0].begin instanceof Function)this.files[0].begin.call(scriptTag);
-
-					scriptTag.onerror = function(){
-						var cacheOrder = $this.files[0];
-						$this.files.shift();
-						if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
-						$this.removeFile(this.getAttribute('src'));
-						scriptTag = null;
-						setTimeout(function(){
-							if($this.files.length>0)$this.loadFiles();
-						},cacheOrder['waitTime'] || $this._defaultTime);
-					};
-
-					scriptTag.onload = scriptTag.onreadystatechange = function(){
-						var cacheOrder = $this.files[0];
-						$this.files.shift();
-						if(!this.readyState || this.readyState == 'loaded' || this.readyState == 'complete'){
-							if(cacheOrder['complete'] instanceof Function)cacheOrder.complete.call(scriptTag);
-						}else{
-							if(cacheOrder['complete'] instanceof Function)cacheOrder.complete.call(scriptTag);
+	 * nesne kontrolleri
+	 * */
+	'_arrayControl': {
+		enumerable :false,
+		writable : false,
+		value :function(variables){
+			return variables instanceof Array;
+		}
+	},
+	'_objectControl' : {
+		enumerable:false,
+		writable:false,
+		value :function(variables){
+			return variables instanceof Object;
+		}
+	},
+	/**
+	 * çoklu dosya yüklemek için kullanılanılacak fonksiyon
+	 * */
+	'_continue' :{
+		enumerable:false,
+		writable:false,
+		value:function(cacheOrder){
+			var $this = this;
+			$this._addedFiles.push(cacheOrder)
+			setTimeout(function(){
+				if($this._files.length>0)$this.loadFiles();
+			},cacheOrder['waitTime'] || $this._defaultTime);
+			if(cacheOrder['complete'] instanceof Function){
+				cacheOrder.complete.call($this,cacheOrder);
+			}
+			if($this._files.length == 0 && $this._finish instanceof Function){
+				console.log('finish loaded');
+				$this._finish.call($this, $this._addedFiles);
+			}
+		}
+	},
+	/**
+	 * Script tarafından eklenmiş olan dosyalar.
+	 * */
+	_addedFiles:{
+		enumerable:false,
+		writable:true,
+		value : []
+	},
+	'loadFiles':{
+		writeable:false,
+		enumerable:true,
+		value: function(){
+			var $this = this, cache =($this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
+			if($this._arrayControl($this._files) && this._files.length>0){
+				if($this._objectControl($this._files[0])){
+					if(!$this._fileExist($this._files[0]['fileSrc'])){
+						var ifJS = Boolean($this._files[0]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
+						switch(true){
+							case ifJS:
+								scriptTag = document.createElement('script');
+								scriptTag.setAttribute('type','text/javascript');
+								scriptTag.setAttribute('src',$this.files[0]['fileSrc']+cache);
+								break;
+							default:
+								scriptTag = document.createElement('link');
+								scriptTag.setAttribute('href',$this.files[0]['fileSrc']+cache);
+								scriptTag.setAttribute('rel','stylesheet');
+								break;
 						}
+
+						if($this.files[0].begin instanceof Function)$this.files[0].begin.call(scriptTag);
+
+						scriptTag.onerror = function(){
+							var cacheOrder = $this._files[0];
+							$this._files.shift();
+							if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
+							$this._removeFile(this.nodeName.toLowerCase() == 'script'?this.getAttribute('src'):this.getAttribute('href'));
+							scriptTag = null;
+							$this._continue(cacheOrder);
+						};
+
+						scriptTag.onload = scriptTag.onreadystatechange = function(){
+							var cacheOrder = $this._files[0];
+							$this._files.shift();
+							if(!this.readyState || this.readyState == 'loaded' || this.readyState == 'complete'){
+								if(cacheOrder['load'] instanceof Function)cacheOrder.load.call($this,scriptTag);
+							}else{
+								if(cacheOrder['load'] instanceof Function)cacheOrder.load.call($this,scriptTag);
+							}
+							$this._continue(cacheOrder);
+						};
+
+						var keys = Object.keys(this._files[0]['attr'] || '');
+
+						if($this._files[0]['attr'] && keys.length>0 && scriptTag){
+							for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],$this._files[0]['attr'][keys[order]]);
+						}
+						document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
+
+					}else{
 						setTimeout(function(){
-							if($this.files.length>0)$this.loadFiles();
-						},cacheOrder['waitTime'] || $this._defaultTime);
-					};
-
-					var keys = Object.keys(this.files[0]['attr'] || '');
-
-					if(this.files[0]['attr'] && keys.length>0 && scriptTag){
-						for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],this.files[0]['attr'][keys[order]]);
+							if($this._files.length>0){
+								$this._files.unshift();
+								$this.loadFiles();
+							}
+							else {
+								if($this._finish instanceof Function)
+									$this._finish.call($this, $this._addedFiles);
+							}
+						}, $this._files[0]['waitTime'] || $this._defaultTime);
+						console.log('file is already added.');
 					}
-					document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
-
-					if($this.files.length == 0 && $this._loadFinish instanceof Function){
-						$this._loadFinish.call($this.files, this);
-					}
-
 				}else{
-					setTimeout(function(){
-						if($this.files.length>0){
-							$this.files.unshift();
-							$this.loadFiles();
-						}
-						else {
-							if($this._loadFinish instanceof Function)
-								$this._loadFinish.call($this.addedFiles, this);
-						}
-					}, this.files[0]['waitTime'] || $this._defaultTime);
-					console.log('file is already added.');
+					throw 'files element must be object';
 				}
 			}else{
-				throw 'files element must be object';
+				throw 'files must be array';
 			}
-		}else{
-			throw 'files must be array';
 		}
 	},
 
 	/**
 	 * Yükleme sırasıda hata olursa ilgili tag siliniyor...
 	 * */
-	removeFile:function(file){
-		if(file){
-			var head = document.getElementsByTagName('HEAD')[0],scriptFile = [], linkFile = [],
-				scriptFile = head.getElementsByTagName('script'),
-				linkFile = head.getElementsByTagName('link'),
-				allFiles = loadFile.objectPush(scriptFile, linkFile);
-			for(var x = 0; x<allFiles.length; x++){
-				if(allFiles[x].getAttribute('src') == file){
-					allFiles[x].parentNode.removeChild(allFiles[x]);
-				}
-			}
-		}
-	},
-
-	objectPush : function(args){
-		var cache = [];
-		if(arguments.length>0){
-			for(var x = 0; x < arguments.length; x++){
-				if(arguments[x] instanceof Object){
-					for(var y = 0; y<arguments[x].length; y++){
-						cache.push(arguments[x][y]);
+	'_removeFile':{
+		enumerable:false,
+		writable:false,
+		value:function(file){
+			var $this = this;
+			if(file){
+				var head = document.getElementsByTagName('HEAD')[0],scriptFile = [], linkFile = [],
+						scriptFile = head.getElementsByTagName('script'),
+						linkFile = head.getElementsByTagName('link'),
+						allFiles = $this._objectPush(scriptFile, linkFile);
+				for(var x = 0; x<allFiles.length; x++){
+					if(allFiles[x].nodeName == 'script'){
+						if(allFiles[x].getAttribute('src') == file){
+							allFiles[x].parentNode.removeChild(allFiles[x]);
+						}
+					}else{
+						if(allFiles[x].getAttribute('href') == file){
+							allFiles[x].parentNode.removeChild(allFiles[x]);
+						}
 					}
 				}
 			}
 		}
-		return cache;
 	},
-	/**
-	 * daha önce yüklenmiş olan dosyaları cacheleyen değişken
-	 * */
-	addedFiles:[],
-
-	/**
-	 * yüklenmek istenen dosyanın daha önce yüklenip
-	 * yüklenmediğini kontrol eden fonskiyon
-	 * */
-	fileExist : function(source){
-		if(source){
-			this.addedFiles = [];
-			if(this.addedFiles.indexOf(source)<0){
-				var head = document.getElementsByTagName('HEAD')[0],
-						order = 0, cacheFiles = [],
-						scripts = head.getElementsByTagName('script'),
-						scriptLength = scripts.length,
-						linkFiles = head.getElementsByTagName('link'),
-						linkFilesLength = linkFiles.length;
-				for(order = 0; order < scriptLength; order++){
-					if(this.addedFiles.indexOf(scripts[order].getAttribute('src'))==-1)this.addedFiles.push(scripts[order].getAttribute('src'));
+	'_objectPush':{
+		enumerable:false,
+		writable:false,
+		value:function(args){
+			var cache = [];
+			if(arguments.length>0){
+				for(var x = 0; x < arguments.length; x++){
+					if(arguments[x] instanceof Object){
+						for(var y = 0; y<arguments[x].length; y++){
+							cache.push(arguments[x][y]);
+						}
+					}
 				}
-				for(order = 0 ; order < linkFilesLength; order++){
-					if(this.addedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)this.addedFiles.push(linkFiles[order].getAttribute('href'));
+			}
+			return cache;
+		}
+	},
+	'_loadedFiles':{
+		enumerable:false,
+		writable:true,
+		value :[]
+	},
+	'_fileExist':{
+		enumerable:false,
+		writable:false,
+		value: function(source){
+			var $this = this;
+			if(source){
+				$this._loadedFiles = [];
+				if(this._loadedFiles.indexOf(source)<0){
+					var head = document.getElementsByTagName('HEAD')[0],
+							order, cacheFiles = [],
+							scripts = head.getElementsByTagName('script'),
+							scriptLength = scripts.length,
+							linkFiles = head.getElementsByTagName('link'),
+							linkFilesLength = linkFiles.length;
+					for(order = 0; order < scriptLength; order++){
+						if($this._loadedFiles.indexOf(scripts[order].getAttribute('src'))==-1)$this._loadedFiles.push(scripts[order].getAttribute('src'));
+					}
+					for(order = 0 ; order < linkFilesLength; order++){
+						if($this._loadedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)$this._loadedFiles.push(linkFiles[order].getAttribute('href'));
+					}
+					if(cacheFiles.length>0)$this._loadedFiles.push(source);
+					return false;
+				}else{
+					return true;
 				}
-				if(cacheFiles.length>0)this.addedFiles.push(source);
-				return false;
 			}else{
+				console.log('fileSrc value is emtpy or null');
 				return true;
 			}
-		}else{
-			console.log('fileSrc value is emtpy or null');
-			return true;
 		}
 	}
-};
+});
