@@ -108,7 +108,7 @@ var loadFile = {
 							break;
 						default:
 							scriptTag = document.createElement('link');
-							scriptTag.setAttribute('src',loadFile.files[0]['fileSrc']+cache);
+							scriptTag.setAttribute('href',loadFile.files[0]['fileSrc']+cache);
 							scriptTag.setAttribute('rel','stylesheet');
 							break;
 					}
