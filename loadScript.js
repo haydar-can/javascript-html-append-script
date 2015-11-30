@@ -3,7 +3,40 @@
  * Sayfaya istenilen script link dosyalarını yüklemeye yarar.
  *
  * Örnek :
- * 	loadFile.files = [{fileSrc:'',waitTime:100,begin:function(){},complete:function(){},error:function(){},attr:{charset:'UTF-8'}}]
+ * 	loadFile.defaultTime = 50;
+	 loadFile.files = [
+	 {
+		 fileSrc : './js/libs/jquery/jquery.min.js',
+		 complete : function(){
+			 loadFile.files.unshift(
+				 {
+					 fileSrc : './js/libs/jquery/jquery-migrate.js',
+					 attr:{
+						 charset:'UTF-8',
+						 async:false
+					 }
+				 },
+				 {
+					 fileSrc : './js/jquery-mobile-config.js',
+					 cache:false,
+					 attr:{
+						 charset:'UTF-8',
+						 async:false
+					 }
+				 }
+			 )
+		 },
+		 attr:{
+			 charset:'UTF-8',
+			 async:false
+		 }
+	 },
+	 {
+		 fileSrc : './js/libs/underscore/underscore.js'
+	 }
+
+	 ];
+	 loadFile.loadFiles();
  * 	loadFile.loadFinish = function(obj){
  * 		console.log(obj.length + ' dosya yüklendi.'
  * 	}
@@ -13,6 +46,21 @@
  * */
 
 var loadFile = {
+	_defaultTime:{
+		value:250,
+		enumerable:false,
+		writable:true,
+	},
+	defaultTime:{
+		get:function(){
+			return this._defaultTime;
+		},
+		set:function(){
+			if(value instanceof Number){
+				this._defaultTime = value;
+			}
+		}
+	},
 	_loadFinish:{
 		value : null,
 		enumerable:false,
@@ -23,11 +71,11 @@ var loadFile = {
 	 * */
 	loadFinish:{
 		get:function(){
-			return loadFile._loadFinish;
+			return this._loadFinish;
 		},
 		set:function(value){
 			if(value instanceof Function){
-				loadFile._loadFinish = value;
+				this._loadFinish = value;
 			}
 		}
 	},
@@ -46,64 +94,73 @@ var loadFile = {
 	/**
 	* çoklu dosya yüklemek için kullanılanılacak fonksiyon
 	* */
-	loadFiles : function(orderNo){
-		orderNo = orderNo || 0;
-		var $this = this;
+	loadFiles : function(){
+		var $this = this, cache =(this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
 		if(this.arrayControl(this.files) && this.files.length>0){
-			if(this.objectControl(this.files[orderNo])){
-				if(!this.fileExist(this.files[orderNo]['fileSrc'])){
-					var ifJS = Boolean(this.files[orderNo]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
+			if(this.objectControl(this.files[0])){
+				if(!this.fileExist(this.files[0]['fileSrc'])){
+					var ifJS = Boolean(this.files[0]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
 					switch(true){
 						case ifJS:
 							scriptTag = document.createElement('script');
-							scriptTag.setAttribute('src',loadFile.files[orderNo]['fileSrc']);
+							scriptTag.setAttribute('type','text/javascript');
+							scriptTag.setAttribute('src',loadFile.files[0]['fileSrc']+cache);
 							break;
 						default:
 							scriptTag = document.createElement('link');
-							scriptTag.setAttribute('src',loadFile.files[orderNo]['fileSrc']);
+							scriptTag.setAttribute('src',loadFile.files[0]['fileSrc']+cache);
+							scriptTag.setAttribute('rel','stylesheet');
 							break;
 					}
 
-					if(this.files[orderNo].begin instanceof Function)this.files[orderNo].begin.call(scriptTag);
+					if(this.files[0].begin instanceof Function)this.files[0].begin.call(scriptTag);
 
 					scriptTag.onerror = function(){
-						if($this.files[orderNo]['error'] instanceof Function)$this.files[orderNo].error.call(scriptTag);
+						var cacheOrder = $this.files[0];
+						$this.files.shift();
+						if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
 						$this.removeFile(this.getAttribute('src'));
 						scriptTag = null;
+						setTimeout(function(){
+							if($this.files.length>0)$this.loadFiles();
+						},cacheOrder['waitTime'] || $this._defaultTime);
 					};
 
 					scriptTag.onload = scriptTag.onreadystatechange = function(){
+						var cacheOrder = $this.files[0];
+						$this.files.shift();
 						if(!this.readyState || this.readyState == 'loaded' || this.readyState == 'complete'){
-							if($this.files[orderNo]['complete'] instanceof Function)$this.files[orderNo].complete.call(scriptTag);
+							if(cacheOrder['complete'] instanceof Function)cacheOrder.complete.call(scriptTag);
 						}else{
-							if($this.files[orderNo]['complete'] instanceof Function)$this.files[orderNo].complete.call(scriptTag);
+							if(cacheOrder['complete'] instanceof Function)cacheOrder.complete.call(scriptTag);
 						}
+						setTimeout(function(){
+							if($this.files.length>0)$this.loadFiles();
+						},cacheOrder['waitTime'] || $this._defaultTime);
 					};
 
-					var keys = Object.keys(this.files[orderNo]['attr']);
+					var keys = Object.keys(this.files[0]['attr'] || '');
 
-					if(this.files[orderNo]['attr'] && keys.length>0 && scriptTag){
-						for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],this.files[orderNo]['attr'][keys[order]]);
+					if(this.files[0]['attr'] && keys.length>0 && scriptTag){
+						for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],this.files[0]['attr'][keys[order]]);
+					}
+					document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
+
+					if($this.files.length == 0 && $this._loadFinish instanceof Function){
+						$this._loadFinish.call($this.files, this);
 					}
 
-					setTimeout(function(){
-						if(scriptTag){
-							document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
-							if($this.files.length>(orderNo+1))$this.loadFiles(++orderNo);
-							else if($this.files.length == (orderNo+1)){
-								if($this._loadFinish instanceof Function)
-									$this._loadFinish.call($this.files, this);
-							}
-						}
-					}, this.files[orderNo]['waitTime'] || 250);
 				}else{
 					setTimeout(function(){
-						if($this.files.length>(orderNo+1))$this.loadFiles(++orderNo);
-						else if($this.files.length == (orderNo+1)){
+						if($this.files.length>0){
+							$this.files.unshift();
+							$this.loadFiles();
+						}
+						else {
 							if($this._loadFinish instanceof Function)
 								$this._loadFinish.call($this.files, this);
 						}
-					}, this.files[orderNo]['waitTime'] || 250);
+					}, this.files[0]['waitTime'] || $this._defaultTime);
 					console.log('file is already added.');
 				}
 			}else{
@@ -155,6 +212,7 @@ var loadFile = {
 	 * */
 	fileExist : function(source){
 		if(source){
+			this.addedFiles = [];
 			if(this.addedFiles.indexOf(source)<0){
 				var head = document.getElementsByTagName('HEAD')[0],
 						order = 0, cacheFiles = [],
@@ -163,12 +221,12 @@ var loadFile = {
 						linkFiles = head.getElementsByTagName('link'),
 						linkFilesLength = linkFiles.length;
 				for(order = 0; order < scriptLength; order++){
-					if(this.addedFiles.indexOf(scripts[order].getAttribute('src'))==-1)cacheFiles.push(scripts[order].getAttribute('src'));
+					if(this.addedFiles.indexOf(scripts[order].getAttribute('src'))==-1)this.addedFiles.push(scripts[order].getAttribute('src'));
 				}
 				for(order = 0 ; order < linkFilesLength; order++){
-					if(this.addedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)cacheFiles.push(linkFiles[order].getAttribute('href'));
+					if(this.addedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)this.addedFiles.push(linkFiles[order].getAttribute('href'));
 				}
-				if(cacheFiles.length>0)this.addedFiles.push(cacheFiles,source);
+				if(cacheFiles.length>0)this.addedFiles.push(source);
 				return false;
 			}else{
 				return true;
