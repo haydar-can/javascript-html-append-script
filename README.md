@@ -20,6 +20,7 @@
 				 {
 					 fileSrc : './js/jquery-mobile-config.js',
 					 cache:false,
+					 waitTime:100,
 					 attr:{
 						 charset:'UTF-8',
 						 async:false
