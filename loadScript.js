@@ -1,5 +1,19 @@
 ﻿'use strict';
 
+if (!Object.keys) {
+	Object.keys = function(obj) {
+		var keys = [];
+
+		for (var i in obj) {
+			if (obj.hasOwnProperty(i)) {
+				keys.push(i);
+			}
+		}
+
+		return keys;
+	};
+}
+
 /**
  * Object.defineProperty PollyFill
  * */
@@ -113,22 +127,60 @@ function defineProperties(obj, properties) {
 
 var loadFile = {};
 Object.defineProperties(loadFile,{
-	'_defaultTime':{
+	/**
+	 * Default Script URL
+	 * */
+	_scriptURL:{
+		value:'./',
+		enumerable:false,
+		writable:true
+	},
+	scriptURL:{
+		get:function(){
+			return this._scriptURL;
+		},
+		set:function(value){
+			if(value instanceof String || typeof value === 'string'){
+				this._scriptURL = value;
+			}
+		}
+	},
+	/**
+	 * Default link URL
+	 * */
+	_linkURL:{
+		value:'./',
+		enumerable:false,
+		writable:true
+	},
+	linkURL:{
+		get:function(){
+			return this._linkURL;
+		},
+		set:function(value){
+			if(value instanceof String || typeof value === 'string'){
+				this._linkURL = value;
+			}
+		}
+	},
+
+	_defaultTime:{
 		value:100,
 		enumerable:false,
 		writable:true
 	},
-	'defaultTime':{
+	defaultTime:{
 		get:function(){
 			return this._defaultTime;
 		},
 		set:function(value){
-			if(value instanceof Number){
+			if(!isNaN(value) || typeof value === 'number'){
 				this._defaultTime = value;
 			}
 		}
 	},
-	'_finish':{
+
+	_finish:{
 		value:null,
 		enumerable:false,
 		writable:true
@@ -136,7 +188,7 @@ Object.defineProperties(loadFile,{
 	/**
 	 * Tüm yükleme bittiğinde çalıştırılacak olan callback function
 	 * */
-	'finish':{
+	finish:{
 		get:function(){
 			return this._finish;
 		},
@@ -149,12 +201,12 @@ Object.defineProperties(loadFile,{
 	/**
 	 * Yüklenecek dosyalar
 	 * */
-	'_files':{
+	_files:{
 		enumerable:false,
 		writable:true,
 		value:[]
 	},
-	'files':{
+	files:{
 		enumerable:true,
 		get:function(){
 			return this._files;
@@ -168,38 +220,42 @@ Object.defineProperties(loadFile,{
 	/**
 	 * nesne kontrolleri
 	 * */
-	'_arrayControl': {
+	_arrayControl: {
 		enumerable :false,
 		writable : false,
 		value :function(variables){
-			return variables instanceof Array;
+			return variables instanceof Array || typeof variables === 'array';
 		}
 	},
-	'_objectControl' : {
+	_objectControl : {
 		enumerable:false,
 		writable:false,
 		value :function(variables){
-			return variables instanceof Object;
+			return variables instanceof Object || typeof variables === 'object';
 		}
 	},
 	/**
-	 * çoklu dosya yüklemek için kullanılanılacak fonksiyon
+	 * dosya yüklemek için kullanılanılacak devam fonksiyon
 	 * */
-	'_continue' :{
+	_continue :{
 		enumerable:false,
 		writable:false,
 		value:function(cacheOrder){
 			var $this = this;
-			$this._addedFiles.push(cacheOrder)
-			setTimeout(function(){
-				if($this._files.length>0)$this.loadFiles();
-			},cacheOrder['waitTime'] || $this._defaultTime);
-			if(cacheOrder['complete'] instanceof Function){
-				cacheOrder.complete.call($this,cacheOrder);
-			}
-			if($this._files.length == 0 && $this._finish instanceof Function){
-				console.log('finish loaded');
-				$this._finish.call($this, $this._addedFiles);
+			if(cacheOrder){
+				var waitTime = Object.keys(cacheOrder).indexOf('waitTime')>-1?cacheOrder['waitTime']:$this.defaultTime;
+				$this._addedFiles.push(cacheOrder);
+				setTimeout(function(){
+					if($this._files.length>0)$this.loadFiles();
+				},waitTime);
+				if(cacheOrder['load'] instanceof Function || typeof cacheOrder['load'] === 'function'){
+					cacheOrder.load.call($this,cacheOrder);
+				}
+				if($this._files.length == 0 && ($this._finish instanceof Function || typeof $this._finish == 'function')){
+					$this._finish.call($this, $this._addedFiles);
+				}
+			}else{
+				$this.loadFiles();
 			}
 		}
 	},
@@ -211,83 +267,85 @@ Object.defineProperties(loadFile,{
 		writable:true,
 		value : []
 	},
-	'loadFiles':{
+	loadFiles:{
 		writeable:false,
 		enumerable:true,
 		value: function(){
-			var $this = this, cache =($this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
-			if($this._arrayControl($this._files) && this._files.length>0){
-				if($this._objectControl($this._files[0])){
-					if(!$this._fileExist($this._files[0]['fileSrc'])){
-						var ifJS = Boolean($this._files[0]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
-						switch(true){
-							case ifJS:
-								scriptTag = document.createElement('script');
-								scriptTag.setAttribute('type','text/javascript');
-								scriptTag.setAttribute('src',$this.files[0]['fileSrc']+cache);
-								break;
-							default:
-								scriptTag = document.createElement('link');
-								scriptTag.setAttribute('href',$this.files[0]['fileSrc']+cache);
-								scriptTag.setAttribute('rel','stylesheet');
-								break;
-						}
-
-						if($this.files[0].begin instanceof Function)$this.files[0].begin.call(scriptTag);
-
-						scriptTag.onerror = function(){
-							var cacheOrder = $this._files[0];
-							$this._files.shift();
-							if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
-							$this._removeFile(this.nodeName.toLowerCase() == 'script'?this.getAttribute('src'):this.getAttribute('href'));
-							scriptTag = null;
-							$this._continue(cacheOrder);
-						};
-
-						scriptTag.onload = scriptTag.onreadystatechange = function(){
-							var cacheOrder = $this._files[0];
-							$this._files.shift();
-							if(!this.readyState || this.readyState == 'loaded' || this.readyState == 'complete'){
-								if(cacheOrder['load'] instanceof Function)cacheOrder.load.call($this,scriptTag);
-							}else{
-								if(cacheOrder['load'] instanceof Function)cacheOrder.load.call($this,scriptTag);
+			var $this = this;
+			if($this.files.length>0 && Object.keys($this.files[0]).length>0){
+				var cache =($this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
+				if($this._arrayControl($this._files) && $this._files.length>0){
+					if($this._objectControl($this._files[0])){
+						if(!$this._fileExist($this._files[0]['fileSrc'])){
+							var ifJS = Boolean($this._files[0]['fileSrc'].match(/(\.js)/gmi)), scriptTag, order = 0;
+							switch(true){
+								case ifJS:
+									scriptTag = document.createElement('script');
+									scriptTag.setAttribute('type','text/javascript');
+									scriptTag.setAttribute('src', $this._scriptURL + $this.files[0]['fileSrc'] + cache);
+									break;
+								default:
+									scriptTag = document.createElement('link');
+									scriptTag.setAttribute('href', $this._linkURL + $this.files[0]['fileSrc'] + cache);
+									scriptTag.setAttribute('rel','stylesheet');
+									break;
 							}
-							$this._continue(cacheOrder);
-						};
 
-						var keys = Object.keys(this._files[0]['attr'] || '');
+							if($this.files[0].begin instanceof Function)$this.files[0].begin.call(scriptTag);
 
-						if($this._files[0]['attr'] && keys.length>0 && scriptTag){
-							for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],$this._files[0]['attr'][keys[order]]);
+							scriptTag.onerror = function(){
+								var cacheOrder = $this._files[0];
+								$this._files.shift();
+								if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
+								$this._removeFile(this.nodeName.toLowerCase() == 'script'?this.getAttribute('src'):this.getAttribute('href'));
+								scriptTag = null;
+								$this._continue(cacheOrder);
+							};
+
+							scriptTag.onload = function(){
+								var cacheOrder = $this._files[0];
+								$this._files.shift();
+								$this._continue(cacheOrder);
+							};
+
+							var keys = Object.keys($this._files[0]['attr'] || []);
+
+							if($this._files[0]['attr'] && keys.length>0 && scriptTag){
+								for(order = 0; order < keys.length; order++)scriptTag.setAttribute(keys[order],$this._files[0]['attr'][keys[order]]);
+							}
+							document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
+
+						}else{
+							setTimeout(function(){
+								if($this._files.length>0){
+									$this._files.unshift();
+									$this.loadFiles();
+								}
+								else {
+									if($this._finish instanceof Function)
+										$this._finish.call($this, $this._addedFiles);
+								}
+							}, $this._files[0]['waitTime'] || $this._defaultTime);
+							console.log('file is already added.');
 						}
-						document.getElementsByTagName('HEAD')[0].appendChild(scriptTag);
-
 					}else{
-						setTimeout(function(){
-							if($this._files.length>0){
-								$this._files.unshift();
-								$this.loadFiles();
-							}
-							else {
-								if($this._finish instanceof Function)
-									$this._finish.call($this, $this._addedFiles);
-							}
-						}, $this._files[0]['waitTime'] || $this._defaultTime);
-						console.log('file is already added.');
+						throw 'files element must be object';
 					}
 				}else{
-					throw 'files element must be object';
+					throw 'files must be array';
 				}
 			}else{
-				throw 'files must be array';
+				console.log($this.files[0]);
+				$this.files.shift();
 			}
+
 		}
 	},
 
 	/**
 	 * Yükleme sırasıda hata olursa ilgili tag siliniyor...
 	 * */
-	'_removeFile':{
+	_removeFile:{
 		enumerable:false,
 		writable:false,
 		value:function(file){
@@ -311,7 +369,7 @@ Object.defineProperties(loadFile,{
 			}
 		}
 	},
-	'_objectPush':{
+	_objectPush:{
 		enumerable:false,
 		writable:false,
 		value:function(args){
@@ -328,12 +386,12 @@ Object.defineProperties(loadFile,{
 			return cache;
 		}
 	},
-	'_loadedFiles':{
+	_loadedFiles:{
 		enumerable:false,
 		writable:true,
 		value :[]
 	},
-	'_fileExist':{
+	_fileExist:{
 		enumerable:false,
 		writable:false,
 		value: function(source){
