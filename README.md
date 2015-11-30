@@ -1,9 +1,9 @@
-HEAD tagın içine script ve link tagları ekler. 
+ï»¿HEAD tagÄ±n iÃ§ine script ve link taglarÄ± ekler.
 
 
- Sayfaya istenilen script link dosyalarını yüklemeye yarar.
+ Sayfaya istenilen script link dosyalarÄ±nÄ± yÃ¼klemeye yarar.
 
- Örnek :
+ Ã–rnek :
  	loadFile.defaultTime = 50;
 	 loadFile.files = [
 	 {
@@ -39,8 +39,8 @@ HEAD tagın içine script ve link tagları ekler.
 	 ];
 	 loadFile.loadFiles();
  	loadFile.loadFinish = function(obj){
- 		console.log(obj.length + ' dosya yüklendi.'
+ 		console.log(obj.length + ' dosya yÃ¼klendi.'
  	}
  	loadFile.loadFiles();
 
- Bağımlılık : Browser'a bağlı olarak Object.key;
+ BaÄŸÄ±mlÄ±lÄ±k : Browser'a baÄŸlÄ± olarak Object.key;
