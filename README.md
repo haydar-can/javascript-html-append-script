@@ -3,9 +3,9 @@
 
  Sayfaya istenilen script link dosyalarını yüklemeye yarar.
 
- Örnek :
+	
  	loadFile.defaultTime = 50;
-	 loadFile.files = [
+	loadFile.files = [
 	 {
 		 fileSrc : './js/libs/jquery/jquery.min.js',
 		 complete : function(){
@@ -30,14 +30,14 @@
 		 attr:{
 			 charset:'UTF-8',
 			 async:false
-		 }
-	 },
-	 {
-		 fileSrc : './js/libs/underscore/underscore.js'
 	 }
+	},
+	{
+		 fileSrc : './js/libs/underscore/underscore.js'
+	}
 
-	 ];
-	 loadFile.loadFiles();
+	];
+	loadFile.loadFiles();
  	loadFile.loadFinish = function(obj){
  		console.log(obj.length + ' dosya yüklendi.'
  	}
