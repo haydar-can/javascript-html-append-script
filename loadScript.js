@@ -242,18 +242,19 @@ Object.defineProperties(loadFile,{
 		writable:false,
 		value:function(cacheOrder){
 			var $this = this;
+			$this._files.shift();
 			if(cacheOrder){
 				var waitTime = Object.keys(cacheOrder).indexOf('waitTime')>-1?cacheOrder['waitTime']:$this.defaultTime;
 				$this._addedFiles.push(cacheOrder);
-				setTimeout(function(){
-					if($this._files.length>0)$this.loadFiles();
-				},waitTime);
 				if(cacheOrder['load'] instanceof Function || typeof cacheOrder['load'] === 'function'){
-					cacheOrder.load.call($this,cacheOrder);
+					cacheOrder.load.apply($this,cacheOrder);
 				}
 				if($this._files.length == 0 && ($this._finish instanceof Function || typeof $this._finish == 'function')){
 					$this._finish.call($this, $this._addedFiles);
 				}
+				setTimeout(function(){
+					if($this._files.length>0)$this.loadFiles();
+				},waitTime);
 			}else{
 				$this.loadFiles();
 			}
@@ -272,8 +273,8 @@ Object.defineProperties(loadFile,{
 		enumerable:true,
 		value: function(){
 			var $this = this;
-			if($this.files.length>0 && Object.keys($this.files[0]).length>0){
-				var cache =($this.files[0]['cache'] == false)?'?_='+new Date().getTime():'';
+			if($this._files.length>0 && Object.keys($this._files[0]).length>0){
+				var cache =($this._files[0]['cache'] == false)?'?_='+new Date().getTime():'';
 				if($this._arrayControl($this._files) && $this._files.length>0){
 					if($this._objectControl($this._files[0])){
 						if(!$this._fileExist($this._files[0]['fileSrc'])){
@@ -282,11 +283,11 @@ Object.defineProperties(loadFile,{
 								case ifJS:
 									scriptTag = document.createElement('script');
 									scriptTag.setAttribute('type','text/javascript');
-									scriptTag.setAttribute('src', $this._scriptURL + $this.files[0]['fileSrc'] + cache);
+									scriptTag.setAttribute('src', $this._scriptURL + $this._files[0]['fileSrc'] + cache);
 									break;
 								default:
 									scriptTag = document.createElement('link');
-									scriptTag.setAttribute('href', $this._linkURL + $this.files[0]['fileSrc'] + cache);
+									scriptTag.setAttribute('href', $this._linkURL + $this._files[0]['fileSrc'] + cache);
 									scriptTag.setAttribute('rel','stylesheet');
 									break;
 							}
@@ -295,17 +296,17 @@ Object.defineProperties(loadFile,{
 
 							scriptTag.onerror = function(){
 								var cacheOrder = $this._files[0];
-								$this._files.shift();
 								if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
 								$this._removeFile(this.nodeName.toLowerCase() == 'script'?this.getAttribute('src'):this.getAttribute('href'));
 								scriptTag = null;
 								$this._continue(cacheOrder);
+								this.onerror = null;
 							};
 
 							scriptTag.onload = function(){
 								var cacheOrder = $this._files[0];
-								$this._files.shift();
 								$this._continue(cacheOrder);
+								this.onload = null;
 							};
 
 							var keys = Object.keys($this._files[0]['attr'] || []);
@@ -335,8 +336,8 @@ Object.defineProperties(loadFile,{
 					throw 'files must be array';
 				}
 			}else{
-				console.log($this.files[0]);
-				$this.files.shift();
+				console.log($this._files[0]);
+				$this._files.shift();
 			}
 
 		}
@@ -398,20 +399,21 @@ Object.defineProperties(loadFile,{
 			var $this = this;
 			if(source){
 				$this._loadedFiles = [];
-				if(this._loadedFiles.indexOf(source)<0){
-					var head = document.getElementsByTagName('HEAD')[0],
-							order, cacheFiles = [],
-							scripts = head.getElementsByTagName('script'),
-							scriptLength = scripts.length,
-							linkFiles = head.getElementsByTagName('link'),
-							linkFilesLength = linkFiles.length;
-					for(order = 0; order < scriptLength; order++){
-						if($this._loadedFiles.indexOf(scripts[order].getAttribute('src'))==-1)$this._loadedFiles.push(scripts[order].getAttribute('src'));
-					}
-					for(order = 0 ; order < linkFilesLength; order++){
-						if($this._loadedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)$this._loadedFiles.push(linkFiles[order].getAttribute('href'));
-					}
-					if(cacheFiles.length>0)$this._loadedFiles.push(source);
+				var head = document.getElementsByTagName('HEAD')[0],
+						order, cacheFiles = [],
+						scripts = head.getElementsByTagName('script'),
+						scriptLength = scripts.length,
+						linkFiles = head.getElementsByTagName('link'),
+						linkFilesLength = linkFiles.length;
+				for(order = 0; order < scriptLength; order++){
+					if($this._loadedFiles.indexOf(scripts[order].getAttribute('src'))==-1)$this._loadedFiles.push(scripts[order].getAttribute('src').split(/\?/g)[0]);
+				}
+				for(order = 0 ; order < linkFilesLength; order++){
+					if($this._loadedFiles.indexOf(linkFiles[order].getAttribute('href'))==-1)$this._loadedFiles.push(linkFiles[order].getAttribute('href').split(/\?/g)[0]);
+				}
+
+				if($this._loadedFiles.indexOf(Boolean($this._files[0]['fileSrc'].match(/(\.js)/gmi))?($this._scriptURL + source):(source = $this._linkURL + source))<0){
+					$this._loadedFiles.push(source);
 					return false;
 				}else{
 					return true;
