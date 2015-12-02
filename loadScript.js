@@ -193,7 +193,7 @@ Object.defineProperties(loadFile,{
 			return this._finish;
 		},
 		set:function(value){
-			if(value instanceof Function){
+			if(value instanceof Function || typeof value === 'function'){
 				this._finish = value;
 			}
 		}
@@ -247,10 +247,10 @@ Object.defineProperties(loadFile,{
 				var waitTime = Object.keys(cacheOrder).indexOf('waitTime')>-1?cacheOrder['waitTime']:$this.defaultTime;
 				$this._addedFiles.push(cacheOrder);
 				if(cacheOrder['load'] instanceof Function || typeof cacheOrder['load'] === 'function'){
-					cacheOrder.load.apply($this,cacheOrder);
+					cacheOrder.load.call(undefined, $this,cacheOrder);
 				}
 				if($this._files.length == 0 && ($this._finish instanceof Function || typeof $this._finish == 'function')){
-					$this._finish.call($this, $this._addedFiles);
+					$this._finish.call(undefined, $this, $this._addedFiles);
 				}
 				setTimeout(function(){
 					if($this._files.length>0)$this.loadFiles();
@@ -292,11 +292,11 @@ Object.defineProperties(loadFile,{
 									break;
 							}
 
-							if($this.files[0].begin instanceof Function)$this.files[0].begin.call(scriptTag);
+							if($this.files[0].begin instanceof Function)$this.files[0].begin.call(undefined, scriptTag);
 
 							scriptTag.onerror = function(){
 								var cacheOrder = $this._files[0];
-								if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(scriptTag);
+								if(cacheOrder['error'] instanceof Function)cacheOrder.error.call(undefined, scriptTag);
 								$this._removeFile(this.nodeName.toLowerCase() == 'script'?this.getAttribute('src'):this.getAttribute('href'));
 								scriptTag = null;
 								$this._continue(cacheOrder);
@@ -324,10 +324,10 @@ Object.defineProperties(loadFile,{
 								}
 								else {
 									if($this._finish instanceof Function)
-										$this._finish.call($this, $this._addedFiles);
+										$this._finish.call(undefined, $this, $this._addedFiles);
 								}
 							}, $this._files[0]['waitTime'] || $this._defaultTime);
-							console.log('file is already added.');
+							console.log($this.files[0]['fileSrc'] + ' file is already added.');
 						}
 					}else{
 						throw 'files element must be object';
